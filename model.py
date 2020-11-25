@@ -1,17 +1,17 @@
 import torch.nn as nn
 import torch
 import pytorch_lightning as pl
+from resnet import *
+from utils import *
 
 
 """
-This is written as
-L = 5
-and S = 3 (so S + 1 steps)
+This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 """
 class PMG(pl.LightningModule):
     
     def __init__(self, model, feature_size, classes_num):
-        super(PMG).__init__()
+        super(PMG, self).__init__()
 
         self.features = model #! This is ResNet50 where L=5  
         self.max1 = nn.MaxPool2d(kernel_size=56, stride=56)
@@ -117,6 +117,55 @@ class PMG(pl.LightningModule):
         return xc1, xc2, xc3, x_concat
 
 
+
+    #! Notice the author feeds the input into nn.DataParallel(model, device_ids=[0,1]), which is probably not needed for Lightning
+    def training_step(self, batch, batch_idx):
+        
+        """
+        This method is reserved for lightning
+        - No need for backward(), step(), etc. 
+        - Here, Image I(n=1) becomes I(n=8), I(n=4), I(n=2), I(n=1). Loss calculated form each of them.
+        """
+
+        inputs, targets = batch
+        CELoss = nn.CrossEntropyLoss()
+
+        # step 1 (start from fine-grained jigsaw n=8)
+        inputs1 = jigsaw_generator(inputs, 8) 
+        output_1, _, _, = self(inputs1) # todo: check this is right
+        loss1 = CELoss(output_1, targets) * 1 # alpha =1
+
+        # step 2 
+        inputs2 = jigsaw_generator(inputs, 4)
+        _, output_2, _, _ = self(inputs2)
+        loss2 = CELoss(output_2, targets) * 1 #alpha = 1
+
+        # step 3
+        inputs3 = jigsaw_generator(inputs, 2)
+        _, _, output_3, _ = self(inputs3)
+        loss3 = CELoss(output_3, targets) * 1
+
+        """ step 4 (final step). You do not use jigsaw here, as you are using the image itself """
+        _, _, _, output_concat = self(inputs)
+        concat_loss = CELoss(output_concat, targets) * 2 # beta = 2
+
+        # Todo: skipping all details regarding accuracy. Make sure below detail is correct
+        train_loss = loss1.item() + loss2.item() + loss3.item() + concat_loss.item()
+        # train_loss = train_loss / (batch_idx + 1) #! I am NOT going to divide by batch index
+
+        return {'loss' :  train_loss}
+
+       
+
+
+
+
+
+
+
+
+
+    
 # This probably doesn't have to be a lightning module
 class BasicConv(pl.LightningModule):
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True, bn=True, bias=False):
@@ -140,9 +189,6 @@ class BasicConv(pl.LightningModule):
 
 
 
-
 if __name__== "__main__":  
 
-    # pmg = PMG()
-    print('things are working fine')
-    # print('The model has {:,} trainable parameters'.format(count_parameters(model)))
+    print('model is working fine')

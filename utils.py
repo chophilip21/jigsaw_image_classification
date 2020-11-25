@@ -5,8 +5,8 @@ import torchvision
 from torch.autograd import Variable
 from torchvision import transforms, models
 import torch.nn.functional as F
-from model import *
-from resnet import *
+import pytorch_lightning as pl
+
 # from config import MODEL_NAME, NUM_FTS, ROOT
 
 
@@ -22,21 +22,27 @@ def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-#! 512 is specific to feature size of ResNet50. 200 is for CUB_200. SHOULD be able to control this from config.py
-def load_model(model_name, pretrain=True, require_grad=True):
-    print('==> Building model..')
-    if model_name == 'resnet50_pmg':
-        net = resnet50(pretrained=pretrain)
-        for param in net.parameters():
-            param.requires_grad = require_grad
-        net = PMG(net, 512, 200)
 
-    return net
+def jigsaw_generator(images, n):
+    l = []
+    for a in range(n):
+        for b in range(n):
+            l.append([a, b])
+    block_size = 448 // n
+    rounds = n ** 2
+    random.shuffle(l)
+    jigsaws = images.clone()
+    for i in range(rounds):
+        x, y = l[i]
+        temp = jigsaws[..., 0:block_size, 0:block_size].clone()
+        jigsaws[..., 0:block_size, 0:block_size] = jigsaws[..., x * block_size:(x + 1) * block_size,
+                                                y * block_size:(y + 1) * block_size].clone()
+        jigsaws[..., x * block_size:(x + 1) * block_size, y * block_size:(y + 1) * block_size] = temp
 
+    return jigsaws
 
 
 
 if __name__== "__main__":  
 
-    print('things are working fine')
-    # print('The model has {:,} trainable parameters'.format(count_parameters(model)))
+    print('things are running fine')
