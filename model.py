@@ -4,6 +4,7 @@ import pytorch_lightning as pl
 from resnet import *
 from utils import *
 import torch.optim as optim
+from pytorch_lightning.metrics.functional.classification import accuracy
 
 
 
@@ -22,9 +23,7 @@ class PMG(pl.LightningModule):
 
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.train_acc = pl.metrics.Accuracy()
-        self.valid_acc = pl.metrics.Accuracy()
-        self.valid_acc_combined = pl.metrics.Accuracy()
+
 
         """
         ----------------------------------------
@@ -186,10 +185,13 @@ class PMG(pl.LightningModule):
         """
 
         _, predicted = torch.max(output_concat.data, 1)
-        self.train_acc(predicted, targets)
-        self.log('train_acc', self.train_acc, on_step=True, on_epoch=False)
+        train_acc = accuracy(predicted, targets)
 
-        return {'loss':  train_loss}
+        metrics = {'loss': train_loss, 'accuracy': train_acc}
+
+        self.log('accuracy', train_acc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        
+        return metrics
 
     # * Not entirely the same as the training step. No jigsaw puzzle here.
     def validation_step(self, batch, batch_idx):
@@ -209,14 +211,16 @@ class PMG(pl.LightningModule):
         _, predicted = torch.max(output_concat.data, 1)
         _, predicted_com = torch.max(outputs_com.data, 1)
 
-        self.valid_acc(predicted, targets)
-        self.valid_acc_combined(predicted_com, targets)
+        valid_acc = accuracy(predicted, targets)
+        valid_acc_en = accuracy(predicted_com, targets)
 
-        self.log('test_acc', self.valid_acc, on_step=True, on_epoch=True)
-        self.log('test_acc_en', self.valid_acc_combined,
-                 on_step=True, on_epoch=True)
+        metrics = {'val_loss':  val_loss, 'val_acc': valid_acc, 'val_acc_en': valid_acc_en}
 
-        return {'val_loss':  val_loss}
+        self.log('val_acc', valid_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log('val_acc_en', valid_acc_en, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        
+        return metrics
 
     def train_dataloader(self):
 
@@ -248,7 +252,7 @@ class PMG(pl.LightningModule):
         testset = torchvision.datasets.ImageFolder(root='bird/test',
                                                    transform=transform_test)
         testloader = torch.utils.data.DataLoader(
-            testset, batch_size=self.batch_size, shuffle=False, num_worker=self.num_workers)
+            testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
 
         return testloader
 
