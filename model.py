@@ -11,7 +11,7 @@ from pytorch_lightning.metrics.functional.classification import accuracy
 # This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 class PMG(pl.LightningModule):
 
-    def __init__(self, model, feature_size, classes_num, batch_size=8, num_workers=6):
+    def __init__(self, model, feature_size, lr, classes_num, batch_size=8, num_workers=6):
         super(PMG, self).__init__()
 
         self.features = model  # ! This is ResNet50 where L=5
@@ -21,6 +21,7 @@ class PMG(pl.LightningModule):
         self.num_ftrs = 2048 * 1 * 1
         self.elu = nn.ELU(inplace=True)
 
+        self.lr = lr
         self.batch_size = batch_size
         self.num_workers = num_workers
 
@@ -131,14 +132,14 @@ class PMG(pl.LightningModule):
     def configure_optimizers(self):
 
         optimizer = optim.SGD([
-            {'params': self.classifier_concat.parameters(), 'lr': 0.002},
-            {'params': self.conv_block1.parameters(), 'lr': 0.002},
-            {'params': self.classifier1.parameters(), 'lr': 0.002},
-            {'params': self.conv_block2.parameters(), 'lr': 0.002},
-            {'params': self.classifier2.parameters(), 'lr': 0.002},
-            {'params': self.conv_block3.parameters(), 'lr': 0.002},
-            {'params': self.classifier3.parameters(), 'lr': 0.002},
-            {'params': self.features.parameters(), 'lr': 0.0002}
+            {'params': self.classifier_concat.parameters(), 'lr': self.lr},
+            {'params': self.conv_block1.parameters(), 'lr': self.lr},
+            {'params': self.classifier1.parameters(), 'lr': self.lr},
+            {'params': self.conv_block2.parameters(), 'lr': self.lr},
+            {'params': self.classifier2.parameters(), 'lr': self.lr},
+            {'params': self.conv_block3.parameters(), 'lr': self.lr},
+            {'params': self.classifier3.parameters(), 'lr': self.lr},
+            {'params': self.features.parameters(), 'lr': (self.lr/10)}
         ],
             momentum=0.9, weight_decay=5e-4)
         
@@ -219,7 +220,7 @@ class PMG(pl.LightningModule):
         self.log('val_acc', valid_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_acc_en', valid_acc_en, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        
+
         return metrics
 
     def train_dataloader(self):

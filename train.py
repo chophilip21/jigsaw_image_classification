@@ -13,12 +13,12 @@ from datetime import datetime
 
 
 
-def load_model(model_name, pretrain=True):
+def load_model(model_name, learning_rate, batch_size, num_workers, pretrain=True):
     print('==> Building model..')
     if model_name == 'resnet50_pmg':
         net = resnet50(pretrained=pretrain)
-        net = PMG(net, 512, 200, batch_size=BATCH_SIZE,
-                  num_workers=NUM_WORKERS)
+        net = PMG(net, feature_size = 512, classes_num = 200, batch_size=batch_size,
+                  num_workers=num_workers, lr = learning_rate)
 
     return net
 
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         model = torch.load(MODEL_PATH)
     else:
         print('training from scratch')
-        model = load_model(model_name, pretrain=True)
+        model = load_model(model_name, LEARNING_RATE, BATCH_SIZE, NUM_WORKERS, pretrain=True)
 
     print('The model has {:,} trainable parameters'.format(
         count_parameters(model)))
@@ -56,10 +56,10 @@ if __name__ == "__main__":
         dirpath=save_dir, monitor='val_loss', mode = 'auto', save_last=True, filename='{epoch:02d}-{val_acc_en:.2f}')
 
     trainer = pl.Trainer(auto_scale_batch_size='power', callbacks=[bar, accumulator, ckpt],
-                         max_epochs=EPOCH, gpus=1, benchmark=True, limit_train_batches=0.3) #input size is true so benchmark should give boost
+                         max_epochs=2, gpus=1, precision=16)
     
 
     print('==> Starting the training process now...')
 
-    # trainer.tune(model)
+    trainer.tune(model) #! Fine tuning
     trainer.fit(model)
