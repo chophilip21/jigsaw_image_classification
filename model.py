@@ -11,7 +11,7 @@ from pytorch_lightning.metrics.functional.classification import accuracy
 # This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 class PMG(pl.LightningModule):
 
-    def __init__(self, model, feature_size, lr, classes_num, batch_size=8, num_workers=6):
+    def __init__(self, model, feature_size, lr, loss, classes_num, batch_size=8, num_workers=6):
         super(PMG, self).__init__()
 
         self.features = model  # ! This is ResNet50 where L=5
@@ -20,11 +20,11 @@ class PMG(pl.LightningModule):
         self.max3 = nn.MaxPool2d(kernel_size=14, stride=14)
         self.num_ftrs = 2048 * 1 * 1
         self.elu = nn.ELU(inplace=True)
-
+        
+        self.loss = loss
         self.lr = lr
         self.batch_size = batch_size
         self.num_workers = num_workers
-
 
         """
         ----------------------------------------
@@ -139,14 +139,17 @@ class PMG(pl.LightningModule):
             {'params': self.classifier2.parameters(), 'lr': self.lr},
             {'params': self.conv_block3.parameters(), 'lr': self.lr},
             {'params': self.classifier3.parameters(), 'lr': self.lr},
-            {'params': self.features.parameters(), 'lr': (self.lr/10)}
+            {'params': self.features.parameters(), 'lr': self.lr/10}
         ],
             momentum=0.9, weight_decay=5e-4)
         
-        #seems like there is function already
-        cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+        # Learning rate optimizer options.
+        # cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+        #plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True) # you need to specify what you are monitoring. 
 
-        return [optimizer], [cosineAnneal]
+        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, verbose=True)
+        
+        return {'optimizer': optimizer, 'lr_scheduler': warm_restart}
 
     #! Notice the author feeds the input into nn.DataParallel(model, device_ids=[0,1]), which is probably not needed for Lightning
     def training_step(self, batch, batch_idx):
@@ -154,32 +157,32 @@ class PMG(pl.LightningModule):
         This method is reserved for lightning
         - No need for backward(), step(), etc. 
         - Here, Image I(n=1) becomes I(n=8), I(n=4), I(n=2), I(n=1). Loss calculated form each of them.
+        - Loss function --- three options to be specified in the train.py
         """
 
         inputs, targets = batch
-        CELoss = nn.CrossEntropyLoss()
+        loss_function = self.loss
 
         # step 1 (start from fine-grained jigsaw n=8)
         inputs1 = jigsaw_generator(inputs, 8)
         output_1, _, _, _ = self(inputs1)  # todo: check this is right
-        loss1 = CELoss(output_1, targets) * 1  # alpha =1
+        loss1 = loss_function(output_1, targets) * 1  # alpha =1
 
         # step 2
         inputs2 = jigsaw_generator(inputs, 4)
         _, output_2, _, _ = self(inputs2)
-        loss2 = CELoss(output_2, targets) * 1  # alpha = 1
+        loss2 = loss_function(output_2, targets) * 1  # alpha = 1
 
         # step 3
         inputs3 = jigsaw_generator(inputs, 2)
         _, _, output_3, _ = self(inputs3)
-        loss3 = CELoss(output_3, targets) * 1
+        loss3 = loss_function(output_3, targets) * 1
 
         """ step 4 (final step). You do not use jigsaw here, as you are using the image itself """
         _, _, _, output_concat = self(inputs)
-        concat_loss = CELoss(output_concat, targets) * 2  # beta = 2
+        concat_loss = loss_function(output_concat, targets) * 2  # beta = 2
 
         train_loss = loss1 + loss2 + loss3 + concat_loss
-        # train_loss = train_loss / (batch_idx + 1) #! I am NOT going to divide by batch index
 
         """
         This is the Pytorch Lightening way to express the accuracy
@@ -197,14 +200,14 @@ class PMG(pl.LightningModule):
     # * Not entirely the same as the training step. No jigsaw puzzle here.
     def validation_step(self, batch, batch_idx):
 
-        CELoss = nn.CrossEntropyLoss()
-
         inputs, targets = batch
+
+        loss_function = self.loss
 
         output_1, output_2, output_3, output_concat = self(inputs)
         outputs_com = output_1 + output_2 + output_3 + output_3 + output_concat
 
-        val_loss = CELoss(output_concat, targets)
+        val_loss = loss_function(output_concat, targets)
 
         """
         There is the individual accuracy, and combined accuracy
@@ -236,7 +239,7 @@ class PMG(pl.LightningModule):
         trainset = torchvision.datasets.ImageFolder(
             root='bird/train', transform=transform_train)
         trainloader = torch.utils.data.DataLoader(
-            trainset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+            trainset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, pin_memory=True)
 
         return trainloader
 
@@ -253,7 +256,7 @@ class PMG(pl.LightningModule):
         testset = torchvision.datasets.ImageFolder(root='bird/test',
                                                    transform=transform_test)
         testloader = torch.utils.data.DataLoader(
-            testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers)
+            testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True)
 
         return testloader
 

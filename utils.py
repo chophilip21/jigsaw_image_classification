@@ -9,7 +9,7 @@ import pytorch_lightning as pl
 import torch.nn as nn
 
 
-#! Probably this is just parameter for training
+#! Not using this
 def cosine_anneal_schedule(t, nb_epoch, lr):
     # t - 1 is used when t has 1-based indexing.
     cos_inner = np.pi * (t % (nb_epoch))
@@ -41,6 +41,25 @@ def jigsaw_generator(images, n):
                 y * block_size:(y + 1) * block_size] = temp
 
     return jigsaws
+
+
+# this is just cross entropy with vanilla label smoothing with strength 0.1
+class LabelSmoothingCrossEntropy(nn.Module):
+
+    def __ini__(self):
+
+        super(LabelSmoothingCrossEntropy, self).__init__()
+
+    def forward(self, x, target, smoothing=0.1):
+
+        confidence = 1. - smoothing
+        logprobs = F.log_softmax(x, dim=-1)
+        nll_loss = -logprobs.gather(dim=-1, index = target.unsqueeze(1))
+        nll_loss = nll_loss.squeeze(1)
+        smooth_loss = -logprobs.mean(dim=-1)
+        loss = confidence * nll_loss + smoothing * smooth_loss
+
+        return loss.mean()
 
 
 # This probably doesn't have to be a lightning module
