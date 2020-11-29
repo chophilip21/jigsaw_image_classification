@@ -5,22 +5,23 @@ from resnet import *
 from utils import *
 import torch.optim as optim
 from pytorch_lightning.metrics.functional.classification import accuracy
-
+from loss import *
 
 
 # This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 class PMG(pl.LightningModule):
 
-    def __init__(self, model, feature_size, lr, loss, classes_num, batch_size=8, num_workers=6):
+    def __init__(self, model, feature_size, lr, loss, classes_num, batch_size=8, num_workers=6, coreg=None):
         super(PMG, self).__init__()
 
-        self.features = model  # ! This is ResNet50 where L=5
+        self.features = model  
         self.max1 = nn.MaxPool2d(kernel_size=56, stride=56)
         self.max2 = nn.MaxPool2d(kernel_size=28, stride=28)
         self.max3 = nn.MaxPool2d(kernel_size=14, stride=14)
         self.num_ftrs = 2048 * 1 * 1
         self.elu = nn.ELU(inplace=True)
         
+        self.coreg = coreg
         self.loss = loss
         self.lr = lr
         self.batch_size = batch_size
@@ -144,50 +145,42 @@ class PMG(pl.LightningModule):
             momentum=0.9, weight_decay=5e-4)
         
         # Learning rate optimizer options.
-        # cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
+        cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
         #plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True) # you need to specify what you are monitoring. 
 
-        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, verbose=True)
+        step_lr = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
+
+        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, verbose=True)
         
-        return {'optimizer': optimizer, 'lr_scheduler': warm_restart}
+        return {'optimizer': optimizer, 'lr_scheduler': cosineAnneal}
 
-    #! Notice the author feeds the input into nn.DataParallel(model, device_ids=[0,1]), which is probably not needed for Lightning
     def training_step(self, batch, batch_idx):
-        """
-        This method is reserved for lightning
-        - No need for backward(), step(), etc. 
-        - Here, Image I(n=1) becomes I(n=8), I(n=4), I(n=2), I(n=1). Loss calculated form each of them.
-        - Loss function --- three options to be specified in the train.py
-        """
-
+      
         inputs, targets = batch
         loss_function = self.loss
 
         # step 1 (start from fine-grained jigsaw n=8)
         inputs1 = jigsaw_generator(inputs, 8)
-        output_1, _, _, _ = self(inputs1)  # todo: check this is right
-        loss1 = loss_function(output_1, targets) * 1  # alpha =1
+        output_1, _, _, _ = self(inputs1) 
+        loss1 = loss_function(output_1, targets) * 1 
 
         # step 2
         inputs2 = jigsaw_generator(inputs, 4)
         _, output_2, _, _ = self(inputs2)
-        loss2 = loss_function(output_2, targets) * 1  # alpha = 1
+        loss2 = loss_function(output_2, targets) * 1  
 
         # step 3
         inputs3 = jigsaw_generator(inputs, 2)
         _, _, output_3, _ = self(inputs3)
         loss3 = loss_function(output_3, targets) * 1
 
-        """ step 4 (final step). You do not use jigsaw here, as you are using the image itself """
-        _, _, _, output_concat = self(inputs)
-        concat_loss = loss_function(output_concat, targets) * 2  # beta = 2
+        # step 4 whole image, and vanilla loss. 
+        if self.coreg == None:
+            _, _, _, output_concat = self(inputs)
+            concat_loss = loss_function(output_concat, targets) * 2 
+            train_loss = loss1 + loss2 + loss3 + concat_loss
 
-        train_loss = loss1 + loss2 + loss3 + concat_loss
-
-        """
-        This is the Pytorch Lightening way to express the accuracy
-        """
-
+        # accuracy 
         _, predicted = torch.max(output_concat.data, 1)
         train_acc = accuracy(predicted, targets)
 
@@ -225,6 +218,14 @@ class PMG(pl.LightningModule):
 
 
         return metrics
+
+    
+    def test_step(self, batch, batch_idx):
+
+        metrics = self.validation_step(batch, batch_idx)
+        metrics = {'test_acc' : metrics['val_acc_en'], 'test_loss': metrics['val_loss']}
+        self.log_dict(metrics)
+
 
     def train_dataloader(self):
 

@@ -42,29 +42,9 @@ def jigsaw_generator(images, n):
 
     return jigsaws
 
-
-# this is just cross entropy with vanilla label smoothing with strength 0.1
-class LabelSmoothingCrossEntropy(nn.Module):
-
-    def __ini__(self):
-
-        super(LabelSmoothingCrossEntropy, self).__init__()
-
-    def forward(self, x, target, smoothing=0.1):
-
-        confidence = 1. - smoothing
-        logprobs = F.log_softmax(x, dim=-1)
-        nll_loss = -logprobs.gather(dim=-1, index = target.unsqueeze(1))
-        nll_loss = nll_loss.squeeze(1)
-        smooth_loss = -logprobs.mean(dim=-1)
-        loss = confidence * nll_loss + smoothing * smooth_loss
-
-        return loss.mean()
-
-
 # This probably doesn't have to be a lightning module
 class BasicConv(pl.LightningModule):
-    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True, bn=True, bias=False):
+    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=0, dilation=1, groups=1, relu=True, bn=False, bias=False):
         super(BasicConv, self).__init__()
         self.out_channels = out_planes
         self.conv = nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size,
