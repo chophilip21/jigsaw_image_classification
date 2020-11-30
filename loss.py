@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.nn.modules.loss import _WeightedLoss
 
 class SmoothCrossEntropyLoss(_WeightedLoss):
-    def __init__(self, weight=None, reduction='mean', smoothing=0.1):
+    def __init__(self, weight=None, reduction='mean', smoothing=0.2):
         super().__init__(weight=weight, reduction=reduction)
         self.smoothing = smoothing
         self.weight = weight
@@ -47,15 +47,9 @@ class SmoothCrossEntropyLoss(_WeightedLoss):
 - Maximize agreement between classifier 
 """
 
-
-def maximum_entropy_loss():
-    pass
-
-
-
 def contrastive_loss(pred, second_pred, reduce=True):
 
-    kl = F.kl_div(F.log_softmax(pred, dim=1), F.softmax(second_pred, dim=1), reuce=False)
+    kl = F.kl_div(F.log_softmax(pred, dim=1), F.softmax(second_pred, dim=1), reduce=False)
 
     if reduce:
         return torch.mean(torch.sum(kl, dim=1))
@@ -64,12 +58,12 @@ def contrastive_loss(pred, second_pred, reduce=True):
         return torch.sum(kl, 1)
 
 
-def jocor_loss(y_1, y_2, target, forget_rate, ind, co_lambda=0.5):
+def jocor_loss(y_1, y_2, target, co_lambda=0.5):
 
-    loss_pick_1 = F.cross_entropy(y_1, target, reduce=False) * (1-co_lambda)
-    loss_pick_2 = F.cross_entropy(y_2, target, reduce=False) * (1-co_lambda)
+    loss_pick_1 = F.cross_entropy(y_1, target, reduce=True) * (1-co_lambda)
+    loss_pick_2 = F.cross_entropy(y_2, target, reduce=True) * (1-co_lambda)
 
-    joint_loss = (loss_pick_1 + loss_pick_2 + co_lambda * contrastive_loss(y_1, y_2, reduce=False) + co_lambda * contrastive_loss(y_2, y_1, reduce=False))
+    joint_loss = (loss_pick_1 + loss_pick_2 + co_lambda * contrastive_loss(y_1, y_2, reduce=True) + co_lambda * contrastive_loss(y_2, y_1, reduce=True))
 
     return joint_loss
     
