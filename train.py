@@ -19,7 +19,7 @@ def load_model(model_name, loss, learning_rate, batch_size, num_workers, regular
     if model_name == 'resnet50_pmg':
         net = resnet50(pretrained=pretrain)
         net = PMG(net, loss=loss, feature_size = 512, classes_num = CLASSES, batch_size=batch_size,
-                  num_workers=num_workers, lr = learning_rate, reg=regularizer)
+                  num_workers=num_workers, lr = learning_rate, reg=regularizer, root='bird') ## this should work right?
 
     return net
 
@@ -28,6 +28,7 @@ if __name__ == "__main__":
 
     torch.manual_seed(0)
     np.random.seed(0)
+    # torch.set_deterministic(True)
 
     model_name = MODEL_BASE
     time = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -42,13 +43,15 @@ if __name__ == "__main__":
         print('==> The loss function is set as: ', LOSS)
         loss = SmoothCrossEntropyLoss()
 
-    elif LOSS == 'agreement':
+    elif LOSS == 'large_margin':
         loss = nn.CrossEntropyLoss()
-        reg_type = 'jokor'
+        reg_type = 'large_margin'
 
-    elif LOSS == 'ce_jacobian':
-        reg_type = 'jacobian'
-        loss = nn.CrossEntropyLoss()
+    elif LOSS == 'complement':
+        loss = ComplementCrossEntropy()
+
+    else:
+        print('====> The LOSS IS NOT SET PROPERLY')
             
     model = load_model(model_name, loss, LEARNING_RATE, BATCH_SIZE, NUM_WORKERS, pretrain=True, regularizer=reg_type)
 
@@ -64,7 +67,7 @@ if __name__ == "__main__":
     """
     
     bar = ProgressBar()
-    early_stopping = EarlyStopping('val_acc_en', patience=15)
+    # early_stopping = EarlyStopping('val_acc_en', patience=15)
     
     # Two validation metrics. Let's have two different saver. 
     ckpt_en = ModelCheckpoint(
@@ -78,11 +81,11 @@ if __name__ == "__main__":
     tensorboard_logger = TensorBoardLogger('tb_log/{}'.format(time), name='{}_model'.format(LOSS))
 
     # use resume_from_checkpoint
-    # resume_point = 'weights/20201128_173524/ce_vanilla/epoch=50-val_acc_en=0.8642.ckpt'
+    # resume_point = 'weights/20201201_180420/ce_label_smooth/last.ckpt'
 
     trainer = pl.Trainer(auto_scale_batch_size='power', callbacks=[bar, ckpt_en, ckpt_reg],
                          max_epochs=EPOCH, gpus=1, precision=16, 
-                         accumulate_grad_batches=2, logger = [tensorboard_logger, csv_logger])
+                         accumulate_grad_batches=1, logger = [tensorboard_logger, csv_logger])
     
     print('==> Starting the training process now...')
 

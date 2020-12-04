@@ -6,13 +6,13 @@ from utils import *
 import torch.optim as optim
 from pytorch_lightning.metrics.functional.classification import accuracy
 from loss import *
-from jacobian import JacobianReg
+# from jacobian import JacobianReg
 
 
 # This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 class PMG(pl.LightningModule):
 
-    def __init__(self, model, feature_size, lr, loss, classes_num, reg, batch_size=8, num_workers=6):
+    def __init__(self, model, feature_size, lr, loss, classes_num, reg, batch_size=8, num_workers=6, root='bird'):
         super(PMG, self).__init__()
 
         self.features = model  
@@ -22,6 +22,7 @@ class PMG(pl.LightningModule):
         self.num_ftrs = 2048 * 1 * 1
         self.elu = nn.ELU(inplace=True)
         
+        self.root = root
         self.reg = reg
         self.loss = loss
         self.lr = lr
@@ -151,9 +152,9 @@ class PMG(pl.LightningModule):
 
         step_lr = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
 
-        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=20, verbose=True)
+        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, verbose=True)
         
-        return {'optimizer': optimizer, 'lr_scheduler': cosineAnneal}
+        return {'optimizer': optimizer, 'lr_scheduler': warm_restart}
 
     def training_step(self, batch, batch_idx):
       
@@ -182,19 +183,11 @@ class PMG(pl.LightningModule):
             concat_loss = loss_function(output_concat, targets) * 2 
             train_loss = loss1 + loss2 + loss3 + concat_loss
 
-        elif self.reg == 'jokor':
-            jocor_loss_1 = jocor_loss(output_3, output_1, targets)
-            jocor_loss_2 = jocor_loss(output_2, output_concat, targets)
-            train_loss = jocor_loss_1 + jocor_loss_2
+        if self.reg == 'large_margin':
+            pass
 
         elif self.reg == 'jacobian':
-            concat_loss = loss_function(output_concat, targets) * 2 
-            train_loss = loss1 + loss2 + loss3 + concat_loss
-            reg = JacobianReg() # jacobian extension. 
-            lambda_JR = 0.01
-            R = reg(inputs, targets)
-
-            train_loss = train_loss + lambda_JR * R
+            pass
 
         # accuracy 
         _, predicted = torch.max(output_concat.data, 1)
@@ -255,7 +248,7 @@ class PMG(pl.LightningModule):
         ])
 
         trainset = torchvision.datasets.ImageFolder(
-            root='bird/train', transform=transform_train)
+            root= self.root+'/train', transform=transform_train)
         trainloader = torch.utils.data.DataLoader(
             trainset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, pin_memory=True)
 
@@ -271,7 +264,7 @@ class PMG(pl.LightningModule):
         ])
 
         # ? Shuffle was True in the original implementation. This is most likely not the best practice.
-        testset = torchvision.datasets.ImageFolder(root='bird/test',
+        testset = torchvision.datasets.ImageFolder(root=self.root+'/test',
                                                    transform=transform_test)
         testloader = torch.utils.data.DataLoader(
             testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True)
