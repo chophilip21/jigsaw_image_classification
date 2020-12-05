@@ -117,24 +117,38 @@ class ComplementCrossEntropy(nn.Module):
         return l1 + self.gamma * l2
 
 
-# heuristic agreement loss function
-# def contrastive_loss(pred, second_pred, reduce=True):
 
-#     kl = F.kl_div(F.log_softmax(pred, dim=1), F.softmax(second_pred, dim=1), reduce=False)
+class Entropy(nn.Module):
+    def __init__(self):
+        super(Entropy, self).__init__()
 
-#     if reduce:
-#         return torch.mean(torch.sum(kl, dim=1))
-    
-#     else: 
-#         return torch.sum(kl, 1)
+    def nansum(self, x):
+        return x[~torch.isnan(x)].sum()
+
+    def forward(self, y_hat, y):
+
+        conditional = y_hat/y
+        cond_ent = - y_hat * torch.log(conditional)
+
+        out = self.nansum(cond_ent)
+
+        return out
 
 
-# def jocor_loss(y_1, y_2, target, co_lambda=0.5):
+class MaximumEntropy(nn.Module):
 
-#     loss_pick_1 = F.cross_entropy(y_1, target, reduce=True) * (1-co_lambda)
-#     loss_pick_2 = F.cross_entropy(y_2, target, reduce=True) * (1-co_lambda)
+    def __init__(self, gamma=1):
+        super(MaximumEntropy, self).__init__()
+        self.gamma = gamma
+        self.cross_entropy = nn.CrossEntropyLoss()
+        self.entropy = Entropy()
 
-#     joint_loss = (loss_pick_1 + loss_pick_2 + co_lambda * contrastive_loss(y_1, y_2, reduce=True) + co_lambda * contrastive_loss(y_2, y_1, reduce=True))
+    def forward(self, y_hat, y):
+        l1 = self.cross_entropy(y_hat, y)
+        l2 = self.entropy(y_hat, y)
+        return l1 - (self.gamma * l2)
 
-#     return joint_loss
+
+
+
     
