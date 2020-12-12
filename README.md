@@ -3,6 +3,8 @@
 - This repository is Pytorch lightning implementation of https://github.com/PRIS-CV/PMG-Progressive-Multi-Granularity-Training.
 - This repository has additional loss functions that can improve the results of the original code. 
 - Refer to colab.pynb to see how things run exactly. 
+- Follwing is the link for my report: https://drive.google.com/file/d/1TwjfJGza-sVAXdqWAxRbdO5NogSQxTRZ/view?usp=sharing
+
 
 ## Requirment
 
@@ -20,6 +22,7 @@ torchvision >= 0.4.2
 - Put your dataset (CUB-200-2011 is the default) and put it inside a dataset folder
 - Run dataset.py and it will convert your dataset into following format:
 
+```
 dataset
 ├── train
 │   ├── class_001
@@ -41,6 +44,8 @@ dataset
     |      ├── 2.jpg
     |      └── ...
     └── ...
+
+```
 
 - If your dataset is not CUB_2011, refer to above structure or refer to my custom function. 
 
