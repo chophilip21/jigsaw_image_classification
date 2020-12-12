@@ -1,7 +1,16 @@
+import pandas as pd
+import numpy as np
 import os
+from torchvision.datasets import VisionDataset
+from torchvision.datasets.folder import default_loader
+from torchvision.datasets.utils import download_url
+from torchvision.datasets.utils import extract_archive
+import csv
+import shutil
 
 
-def make_dataset(folder):
+# if you are using CUB dataset, use this function
+def make_cub_dataset(folder):
 
     split = {}
 
@@ -66,10 +75,80 @@ def make_dataset(folder):
                 test_count[img_class] += 1
 
             line = fp.readline()
-        
+
         print('completed setting up image dataset')
 
 
-if __name__ == "__main__":
+def make_custom_dataset(folder):
 
-    make_dataset('bird')  # for CUB
+
+    with open('datasets/classes.csv') as csv_file:
+
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            line_count = 0
+
+            for row in csv_reader:
+                
+                print('working on {}th element'.format(line_count))
+                line_count += 1
+
+                train_folder = '{}/{}'.format('datasets/train', row[1])
+                test_folder = '{}/{}'.format('datasets/test', row[1])
+
+                if not os.path.exists(train_folder):
+                    os.makedirs(train_folder)
+
+                if not os.path.exists(test_folder):
+                    os.makedirs(test_folder)
+
+
+    with open('datasets/train.txt') as fp:
+        line = fp.readline()
+
+        while line:
+            line = line.strip()
+
+            image_path, img_id = line.split(' ')
+
+            full_image_path = os.path.join(folder, image_path)
+
+            new_path = image_path.split('images/')[1]
+            new_path = os.path.join(folder, 'train', new_path)
+
+            print('processing image from:{}'.format(new_path))
+
+
+            shutil.copyfile(full_image_path, new_path )
+
+            line = fp.readline()
+
+
+    with open('datasets/test.txt') as fp:
+
+        line = fp.readline()
+
+        while line:
+            line = line.strip()
+
+            image_path, img_id = line.split(' ')
+
+            full_image_path = os.path.join(folder, image_path)
+
+            new_path = image_path.split('images/')[1]
+            new_path = os.path.join(folder, 'test', new_path)
+
+            print('processing image from:{}'.format(new_path))
+
+            shutil.copyfile(full_image_path, new_path)
+
+            line = fp.readline()
+
+
+
+if __name__ == '__main__':
+
+    folder = 'datasets'
+
+    make_cub_dataset(folder)
+
+   

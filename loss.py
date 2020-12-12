@@ -118,37 +118,4 @@ class ComplementCrossEntropy(nn.Module):
 
 
 
-class Entropy(nn.Module):
-    def __init__(self):
-        super(Entropy, self).__init__()
-
-    def nansum(self, x):
-        return x[~torch.isnan(x)].sum()
-
-    def forward(self, y_hat, y):
-
-        conditional = y_hat/y
-        cond_ent = - y_hat * torch.log(conditional)
-
-        out = self.nansum(cond_ent)
-
-        return out
-
-
-class MaximumEntropy(nn.Module):
-
-    def __init__(self, gamma=1):
-        super(MaximumEntropy, self).__init__()
-        self.gamma = gamma
-        self.cross_entropy = nn.CrossEntropyLoss()
-        self.entropy = Entropy()
-
-    def forward(self, y_hat, y):
-        l1 = self.cross_entropy(y_hat, y)
-        l2 = self.entropy(y_hat, y)
-        return l1 - (self.gamma * l2)
-
-
-
-
     

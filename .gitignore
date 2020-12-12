@@ -140,3 +140,5 @@ events*
 /bird
 /tb_log
 /csv_log
+/datasets
+*.jpg

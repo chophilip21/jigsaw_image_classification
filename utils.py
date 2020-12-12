@@ -7,6 +7,7 @@ from torchvision import transforms, models
 import torch.nn.functional as F
 import pytorch_lightning as pl
 import torch.nn as nn
+from PIL import Image
 
 
 #! Not using this
@@ -32,6 +33,7 @@ def jigsaw_generator(images, n):
     rounds = n ** 2
     random.shuffle(l)
     jigsaws = images.clone()
+
     for i in range(rounds):
         x, y = l[i]
         temp = jigsaws[..., 0:block_size, 0:block_size].clone()
@@ -41,6 +43,14 @@ def jigsaw_generator(images, n):
                 y * block_size:(y + 1) * block_size] = temp
 
     return jigsaws
+
+
+def save_image(data, filename):
+        img = data.clone().clamp(0, 255).numpy()
+        img = img[0].transpose(1, 2, 0)
+        img = Image.fromarray(img, mode='RGB')
+        img.save(filename)
+
 
 # This probably doesn't have to be a lightning module
 class BasicConv(pl.LightningModule):
@@ -62,6 +72,25 @@ class BasicConv(pl.LightningModule):
         return x
 
 
+
+
 if __name__ == "__main__":
 
-    print('things are running fine')
+    print('Testing jigsaw on a random image')
+
+    img = Image.open('example.jpg')
+
+    size = 448, 448
+    img.thumbnail(size)
+    img.save('resized.jpg')
+
+    image = Image.open('resized.jpg')
+
+    tensor = transforms.ToTensor()(image)
+    print(tensor.shape)
+
+    test = jigsaw_generator(tensor, 2)
+
+    test = transforms.ToPILImage()(test)
+
+    test.show()

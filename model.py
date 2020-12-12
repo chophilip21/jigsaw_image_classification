@@ -4,15 +4,15 @@ import pytorch_lightning as pl
 from resnet import *
 from utils import *
 import torch.optim as optim
+from dataset import *
 from pytorch_lightning.metrics.functional.classification import accuracy
 from loss import *
-# from jacobian import JacobianReg
 
 
 # This is model is written considering L = 5 and S = 3 (so S + 1 steps)
 class PMG(pl.LightningModule):
 
-    def __init__(self, model, feature_size, lr, loss, classes_num, reg, batch_size=8, num_workers=6, root='bird'):
+    def __init__(self, model, feature_size, lr, loss, classes_num, batch_size=8, num_workers=6, root='bird'):
         super(PMG, self).__init__()
 
         self.features = model  
@@ -23,7 +23,6 @@ class PMG(pl.LightningModule):
         self.elu = nn.ELU(inplace=True)
         
         self.root = root
-        self.reg = reg
         self.loss = loss
         self.lr = lr
         self.batch_size = batch_size
@@ -147,22 +146,24 @@ class PMG(pl.LightningModule):
             momentum=0.9, weight_decay=5e-4)
         
         # Learning rate optimizer options.
-        cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10, verbose=True)
+        cosineAnneal = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=10)
         #plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', patience=5, verbose=True) # you need to specify what you are monitoring. 
 
         step_lr = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.1)
 
-        warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, verbose=True)
+        # warm_restart = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, verbose=True)
         
-        return {'optimizer': optimizer, 'lr_scheduler': warm_restart}
+        return {'optimizer': optimizer, 'lr_scheduler': cosineAnneal}
 
     def training_step(self, batch, batch_idx):
-      
+        
+
         inputs, targets = batch
         loss_function = self.loss
 
         # step 1 (start from fine-grained jigsaw n=8)
         inputs1 = jigsaw_generator(inputs, 8)
+
         output_1, _, _, _ = self(inputs1) 
         loss1 = loss_function(output_1, targets) * 1 
 
@@ -179,16 +180,9 @@ class PMG(pl.LightningModule):
         # step 4 whole image, and vanilla loss. 
         _, _, _, output_concat = self(inputs)
 
-        if self.reg == None:
-            concat_loss = loss_function(output_concat, targets) * 2 
-            train_loss = loss1 + loss2 + loss3 + concat_loss
-
-        if self.reg == 'large_margin':
-            pass
-
-        elif self.reg == 'jacobian':
-            pass
-
+        concat_loss = loss_function(output_concat, targets) * 2 
+        train_loss = loss1 + loss2 + loss3 + concat_loss
+   
         # accuracy 
         _, predicted = torch.max(output_concat.data, 1)
         train_acc = accuracy(predicted, targets)
@@ -247,8 +241,11 @@ class PMG(pl.LightningModule):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
 
-        trainset = torchvision.datasets.ImageFolder(
-            root= self.root+'/train', transform=transform_train)
+        # trainset = torchvision.datasets.ImageFolder(
+        #     root= self.root+'/train', transform=transform_train)
+
+        trainset = Aircraft('./aircraft', train=True, download=True)
+
         trainloader = torch.utils.data.DataLoader(
             trainset, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers, pin_memory=True)
 
@@ -263,9 +260,12 @@ class PMG(pl.LightningModule):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
         ])
 
-        # ? Shuffle was True in the original implementation. This is most likely not the best practice.
-        testset = torchvision.datasets.ImageFolder(root=self.root+'/test',
-                                                   transform=transform_test)
+                # testset = torchvision.datasets.ImageFolder(root=self.root+'/test',
+        #                                            transform=transform_test)
+
+
+        testset =  Aircraft('./aircraft', train=False, download=True)
+
         testloader = torch.utils.data.DataLoader(
             testset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers, pin_memory=True)
 

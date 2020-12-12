@@ -14,12 +14,12 @@ from pytorch_lightning.tuner.tuning import Tuner
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from loss import *
 
-def load_model(model_name, loss, learning_rate, batch_size, num_workers, regularizer, pretrain=True):
+def load_model(model_name, loss, learning_rate, batch_size, num_workers, pretrain=True):
     print('==> Building model..')
     if model_name == 'resnet50_pmg':
         net = resnet50(pretrained=pretrain)
         net = PMG(net, loss=loss, feature_size = 512, classes_num = CLASSES, batch_size=batch_size,
-                  num_workers=num_workers, lr = learning_rate, reg=regularizer, root='bird') ## this should work right?
+                  num_workers=num_workers, lr = learning_rate, root='bird') 
 
     return net
 
@@ -43,17 +43,13 @@ if __name__ == "__main__":
         print('==> The loss function is set as: ', LOSS)
         loss = SmoothCrossEntropyLoss()
 
-    elif LOSS == 'large_margin':
-        loss = nn.CrossEntropyLoss()
-        reg_type = 'large_margin'
-
     elif LOSS == 'complement':
         loss = ComplementCrossEntropy()
 
     else:
         print('====> The LOSS IS NOT SET PROPERLY')
             
-    model = load_model(model_name, loss, LEARNING_RATE, BATCH_SIZE, NUM_WORKERS, pretrain=True, regularizer=reg_type)
+    model = load_model(model_name, loss, LEARNING_RATE, BATCH_SIZE, NUM_WORKERS, pretrain=True)
 
     print('The model has {:,} trainable parameters'.format(
         count_parameters(model)))
@@ -62,7 +58,6 @@ if __name__ == "__main__":
     """
     ------------------------------------
     Intialize the trainier from the model and the callbacks
-    # Tensorboard logging: tensorboard --logdir lightning_logs
     ------------------------------------
     """
     

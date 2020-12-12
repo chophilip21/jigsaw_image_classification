@@ -3,5 +3,5 @@ NUM_WORKERS = 6
 MODEL_BASE = 'resnet50_pmg'
 LEARNING_RATE = 0.0008
 CLASSES = 200
-LOSS= 'complement' #options: ce_vanilla, ce_label_smooth, complement, large_margin
+LOSS= 'ce_vanilla' #options: ce_vanilla, ce_label_smooth, complement,
 EPOCH = 300
