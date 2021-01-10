@@ -1,10 +1,10 @@
-# Pytorch Lightning implementation of Progressive Multi-Granularity (PMG) Learning for Fine-grained image classification
+# Pytorch Lightning implementation of Jigsaw Patch Learning for Fine-grained image classification
 
-- This repository is Pytorch lightning implementation of https://github.com/PRIS-CV/PMG-Progressive-Multi-Granularity-Training.
 - This repository is created for SFU CMPT 757 class final project. 
 - This repository has additional loss functions that can improve the results of the original code. 
-- Refer to colab.pynb to see how things run exactly. 
+- Refer to colab.ipynb to see how things run exactly. 
 - Follwing is the link for my report: https://drive.google.com/file/d/1TwjfJGza-sVAXdqWAxRbdO5NogSQxTRZ/view?usp=sharing
+- This repository's backbone classfier is my Pytorch lightning implementation of https://github.com/PRIS-CV/PMG-Progressive-Multi-Granularity-Training. Credits to the author of PMG. 
 
 ## Requirment
 
