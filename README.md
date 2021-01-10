@@ -1,10 +1,9 @@
 # Pytorch Lightning implementation of Jigsaw Patch Learning for Fine-grained image classification
 
 - This repository is created for SFU CMPT 757 class final project. 
-- This repository has additional loss functions that can improve the results of the original code. 
-- Refer to colab.ipynb to see how things run exactly. 
 - Follwing is the link for my report: https://drive.google.com/file/d/1TwjfJGza-sVAXdqWAxRbdO5NogSQxTRZ/view?usp=sharing
 - This repository's backbone classfier is my Pytorch lightning implementation of https://github.com/PRIS-CV/PMG-Progressive-Multi-Granularity-Training. Credits to the author of PMG. 
+- This repository has additional loss functions that can improve the results of the original code (PMG), and acheives state-of-the-art results in FGVC benchmark datasets like CUB-200_2011. 
 
 ## Requirment
 
@@ -21,6 +20,7 @@ torchvision >= 0.4.2
 - You can download dataset from the official link: http://www.vision.caltech.edu/visipedia/CUB-200.html
 - Put your dataset (CUB-200-2011 is the default) and put it inside a dataset folder
 - Run dataset.py and it will convert your dataset into following format:
+- Refer to colab.ipynb to see how things run exactly. 
 
 ```
 dataset
